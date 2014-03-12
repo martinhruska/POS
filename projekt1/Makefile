@@ -2,7 +2,10 @@ CC=gcc
 CFLAGS=-Wall -Wextra -g -O
 PROJ=proj01
 
-ALL: $(PROJ)
+all: $(PROJ)
 
 $(PROJ): $(PROJ).c
 	$(CC) $(CFLAGS) $(PROJ).c -o $@
+
+clean:
+	rm $(PROJ)
