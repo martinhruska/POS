@@ -78,7 +78,7 @@ void *threadFunction(void *arg)
     int myTicket = 0;
 
     while((myTicket = getticket()) <= csPasses)
-    {
+    { // iterate while not enough passes
         pause.tv_nsec = rand_r(&seed)%500000000L;
         //printf("going to sleep with ticket %d for %d\n",myTicket, pause.tv_nsec);
         nanosleep(&pause, NULL);
@@ -112,6 +112,7 @@ int main(int argc, char**argv)
     pthread_t pts[threads];
     pthread_attr_t attr;
 
+    // initiate attributes
     int res = pthread_attr_init(&attr);
     if (res != 0)
     {
@@ -128,7 +129,7 @@ int main(int argc, char**argv)
     int ids[threads];
     int i = 0;
     for (i=0; i < threads; ++i)
-    {
+    { // create threads
         ids[i] = i+1;
         if ((res = pthread_create(&pts[i], &attr, threadFunction, (void *) &ids[i])) != 0)
         {
@@ -139,7 +140,7 @@ int main(int argc, char**argv)
 
     int threadsOk = 1;
     for (i=0; i < threads; ++i)
-    {
+    { // join threads
         int result = -1;
         if ((res = pthread_join(pts[i], (void *) &result)) != 0)
         {
