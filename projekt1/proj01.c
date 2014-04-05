@@ -1,9 +1,17 @@
+/**
+ * POS project 1
+ * author: Martin Hruska
+ * mail: xhrusk16@stud.fit.vutbr.cz
+ */
+
+
 #include <stdio.h>
 #include <signal.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <wait.h>
+#include <sys/wait.h>
+
 
 int sEnd=0;
 pid_t pid=-1;
@@ -18,7 +26,9 @@ void handleInt(int sig)
         sEnd = 1;
     }
     else if (pid > 0)
-    { // TODO is it neccessary to have all this in signal handler
+    { // parent waits for children and exit
+      // this cannot be done in parent function
+      // because there is blocking function getchar()
         int status = 0;
         kill(pid, SIGUSR1);
         waitpid(pid, &status, 0);
@@ -38,14 +48,16 @@ void handleUsr1(int sig)
 
 void handleUsr2(int sig)
 {
-    printf("handle 2\n");
     outputChar = 'A';
 }
 
-int parrentProc(pid_t childPid, pid_t myPid, sigset_t* setusr)
+/*
+ * Function called in parent process
+ */
+int parentProc(pid_t childPid, pid_t myPid, sigset_t* setusr)
 {
     sigset_t emptySet;
-    while(1)
+    while(!sEnd)
     {
         sigprocmask(SIG_BLOCK, setusr, NULL);
         sigUsr1 = 0;
@@ -58,22 +70,27 @@ int parrentProc(pid_t childPid, pid_t myPid, sigset_t* setusr)
         {
             outputChar += 1;
         }
-        kill(childPid, SIGUSR1);
+        kill(childPid, SIGUSR1); // child's turn
+
+        // waint for children process
         while(!sigUsr1)
         {
             sigsuspend(&emptySet);
         }
-        sigprocmask(SIG_UNBLOCK, setusr, NULL);
-        printf("Press enter...\n");
+        printf("Press enter...");
         int input = getchar();
         while (input != '\n')
         {
             input = getchar();
         }
+        sigprocmask(SIG_UNBLOCK, setusr, NULL);
     }
     return 0;
 }
 
+/*
+ * Function called in child's process
+ */
 int childProc(pid_t parentPid, pid_t myPid, sigset_t* setusr)
 {
     sigset_t emptySet;
@@ -81,7 +98,7 @@ int childProc(pid_t parentPid, pid_t myPid, sigset_t* setusr)
     {
         sigprocmask(SIG_BLOCK, setusr, NULL);
         while(!sigUsr1)
-        {
+        { // wait on signal from parent
             sigsuspend(&emptySet);
         }
 
@@ -124,6 +141,7 @@ int main(void)
     // Init my own handlers
     sigprocmask(SIG_BLOCK, &setint, NULL);
 
+    // catch sigint signal
     sigact.sa_handler = handleInt;
     sigemptyset(&sigact.sa_mask);
     sigact.sa_flags = 0;
@@ -132,6 +150,7 @@ int main(void)
         return 1;
     }
 
+    // catch sigusr1 signal
     sigusr1.sa_handler = handleUsr1;
     sigemptyset(&sigusr1.sa_mask);
     sigusr1.sa_flags = 0;
@@ -140,6 +159,7 @@ int main(void)
         return 1;
     }
 
+    // catch sigusr2 signal
     sigusr2.sa_handler = handleUsr2;
     sigemptyset(&sigusr2.sa_mask);
     sigusr2.sa_flags = 0;
@@ -150,10 +170,11 @@ int main(void)
     
     sigprocmask(SIG_UNBLOCK, &setint, NULL);
 
+    // forking processes
     pid = fork();
     if (pid > 0)
     {
-        parrentProc(pid, getpid(), &setusr); 
+        parentProc(pid, getpid(), &setusr); 
     } 
     else if (pid == 0)
     {
