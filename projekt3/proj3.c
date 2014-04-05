@@ -5,10 +5,18 @@
 
 #include <pthread.h>
 #include <unistd.h>
+#include <wait.h>
 
 #define UNUSED(x) (void)(x)
 
 enum specialCmdOpts {NONE, BCG, IN, OUT};
+static struct command *readCmd = NULL;
+
+// synchronization tools
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t condMonitor = PTHREAD_COND_INITIALIZER;
+static int cmdLoaded = 0;
+
 
 struct command
 {
@@ -104,6 +112,12 @@ struct command *parseCommand(char *str, int size)
 
 int deleteCommand(struct command* cmd)
 {
+    free(cmd->cmd);
+    int i = 0;
+    for (i=0; i < cmd->paramsNumber; i++)
+    {
+        free(cmd->params[i]);
+    }
     free(cmd);
     return 0;
 }
@@ -113,6 +127,18 @@ void printPrompt()
     printf("\n");
     printf("~$ ");
     fflush(stdout);
+}
+
+void printCurrentCommad()
+{
+    printf("Command: %s\n",readCmd->cmd);
+    printf("With params: ");
+    int i = 0;
+    for(i=0; i < readCmd->paramsNumber+1; i++)
+    {
+        printf("%s ",readCmd->params[i]);
+    }
+    printf("\n");
 }
 
 void *readThreadFunction(void *params)
@@ -126,31 +152,100 @@ void *readThreadFunction(void *params)
     while(1)
     {
         getline(&newLine, &newLineSize, stdin);
-        struct command *cmd = parseCommand(newLine, strlen(newLine));
-        printf("So you wanna execute %s\n",cmd->cmd);
-        printf("With params: ");
-        int i = 0;
-        for(i=0; i < cmd->paramsNumber+1; i++)
+        readCmd = parseCommand(newLine, strlen(newLine));
+        printCurrentCommad();
+
+        cmdLoaded = 1;
+        pthread_cond_signal(&condMonitor);
+
+        if (!strcmp(readCmd->cmd, "exit"))
         {
-            printf("%s ",cmd->params[i]);
+            break;
         }
-        printf("\n");
-        char *cmdStr[] = { "ls", "-l", (char *)0 };
-        //int ret = execvp (cmd->cmd, cmdStr);
-        int ret = execvp (cmd->cmd, cmd->params);
-        if (ret < 0) 
+
+        pthread_mutex_lock(&mutex);
+        while(cmdLoaded)
         {
-            printf("Unable to execute given command\n");
+            pthread_cond_wait(&condMonitor, &mutex);
         }
-        //deleteCommand(cmd);
+        pthread_mutex_unlock(&mutex);
+        deleteCommand(readCmd);
+
         printPrompt();
     }
     return NULL;
 }
 
+void parentProc(pid_t child)
+{
+    int status = 0;
+    waitpid(child, &status, 0);
+    if (status != EXIT_SUCCESS)
+    {
+        printf("Unable to process children\n");
+    }
+}
+
+void childProc()
+{
+    int ret = execvp (readCmd->cmd, readCmd->params);
+    if (ret < 0) 
+    {
+        printf("Unable to execute given command\n");
+        exit(EXIT_FAILURE);
+    }
+    exit(EXIT_SUCCESS);
+}
+
+void executeCommand()
+{   
+    pid_t pid = fork();
+    if (pid > 0)
+    {
+        parentProc(pid); 
+    } 
+    else if (pid == 0)
+    {
+        childProc();
+    }
+    else if (pid < 0)
+    {
+        perror("Fork call was unsuccesfull\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void *commandThreadFunction(void *params)
+{
+    UNUSED(params);
+    while(1)
+    {
+        pthread_mutex_lock(&mutex);
+        while(!cmdLoaded)
+        {
+            pthread_cond_wait(&condMonitor, &mutex);
+        }
+        pthread_mutex_unlock(&mutex);
+        
+        printf("Command thread is here\n");
+        printCurrentCommad();
+        if (!strcmp(readCmd->cmd, "exit"))
+        {
+            break;
+        }
+        executeCommand();
+        cmdLoaded = 0;
+        pthread_cond_signal(&condMonitor);
+        fflush(stdout);
+    }
+    return NULL;
+}
+
+
 int main(void)
 {
     pthread_t readThread;
+    pthread_t commandThread;
     pthread_attr_t attr;
 
     // Initiate attributes
@@ -166,8 +261,13 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    // create thread
+    // create threads
     if ((res = pthread_create(&readThread, &attr, readThreadFunction, NULL)) != 0)
+    {
+        printf("pthread create error: %d\n", res);
+        return EXIT_FAILURE;
+    }
+    if ((res = pthread_create(&commandThread, &attr, commandThreadFunction, NULL)) != 0)
     {
         printf("pthread create error: %d\n", res);
         return EXIT_FAILURE;
@@ -176,6 +276,11 @@ int main(void)
     // join thread
     int result = -1;
     if ((res = pthread_join(readThread, (void *) &result)) != 0)
+    {
+        printf("pthread join error: %d\n", res);
+        return EXIT_FAILURE;
+    }
+    if ((res = pthread_join(commandThread, (void *) &result)) != 0)
     {
         printf("pthread join error: %d\n", res);
         return EXIT_FAILURE;
