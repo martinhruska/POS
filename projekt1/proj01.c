@@ -4,6 +4,8 @@
  * e-mail: xhrusk16@stud.fit.vutbr.cz
  */
 
+#define _XOPEN_SOURCE
+
 #include <stdio.h>
 #include <signal.h>
 #include <errno.h>
