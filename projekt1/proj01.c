@@ -4,14 +4,12 @@
  * e-mail: xhrusk16@stud.fit.vutbr.cz
  */
 
-
 #include <stdio.h>
 #include <signal.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>
-
 
 int sEnd=0;
 pid_t pid=-1;
