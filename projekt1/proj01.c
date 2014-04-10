@@ -1,7 +1,7 @@
 /**
  * POS project 1
  * author: Martin Hruska
- * mail: xhrusk16@stud.fit.vutbr.cz
+ * e-mail: xhrusk16@stud.fit.vutbr.cz
  */
 
 
