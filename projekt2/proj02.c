@@ -30,21 +30,10 @@ pthread_cond_t mutexCSCond=PTHREAD_COND_INITIALIZER;
  */
 int getticket(void)
 {
-    int res = pthread_mutex_lock(&mutexTicket);
-    if (res != 0)
-    {
-        printf("mutex_lock error %d", res);
-        return EXIT_FAILURE;
-    }
-
+    pthread_mutex_lock(&mutexTicket);
     int myTicket =  ticket++;
-    res = pthread_mutex_unlock(&mutexTicket);
+    pthread_mutex_unlock(&mutexTicket);
 
-    if (res != 0)
-    {
-        printf("mutex_unlock error %d", res);
-        return EXIT_FAILURE;
-    }
     return myTicket;
 }
 
@@ -54,13 +43,10 @@ int getticket(void)
  */
 void await(int aenter)
 {
-    //printf("going to wait for %d == %d\n", aenter, ticketToCS);
     pthread_mutex_lock(&mutexCS);
-    //printf("waiting for %d == %d\n", aenter, ticketToCS);
     while(aenter != ticketToCS)
     {
         pthread_cond_wait(&mutexCSCond, &mutexCS);
-        //printf("another cycle for %d == %d\n", aenter, ticketToCS);
     }
 }
 
@@ -90,15 +76,11 @@ void *threadFunction(void *arg)
     while((myTicket = getticket()) < csPasses)
     { // iterate while not enough passes
         pause.tv_nsec = rand_r(&seed)%500000000L;
-        //printf("going to sleep with ticket %d for %d\n",myTicket, pause.tv_nsec);
         nanosleep(&pause, NULL);
         await(myTicket);
-        //printf("awaited %d\n", myTicket);
         printf("%d\t(%d)\n", myTicket, id);
         advance();
         pause.tv_nsec = rand_r(&seed)%500000000L;
-        //printf("adavanced %d\n", myTicket);
-        //printf("going to sleep for %d\n",pause.tv_nsec);
         nanosleep(&pause, NULL);
     }
 
@@ -159,7 +141,6 @@ int main(int argc, char**argv)
         {
             threadsOk = 0;
         }
-        //printf("thread ended with state: %d\n", result);
     }
 
     if (!threadsOk)
