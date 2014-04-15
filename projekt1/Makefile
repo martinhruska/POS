@@ -1,3 +1,7 @@
+# POS project 1
+# author: Martin Hruska
+# e-mail: xhrusk16@stud.fit.vutbr.cz
+
 CC=gcc
 CFLAGS=-Wall -Wextra -g -O
 PROJ=proj01

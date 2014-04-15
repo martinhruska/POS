@@ -1,9 +1,13 @@
 #! /bin/bash
 
+lastRes=0
 for i in {1..1000}
 do
-    if [[ `./proj02 1024 $i | wc -l` -eq $i ]]
+    res=`./proj02 $1 $i | wc -l`
+    expRes=$(($lastRes+1))
+    if [[ $res -eq $i && $res -ne $lastRes && $res -eq $expRes ]]
     then
+        lastRes=$res
         echo "$i [OK]"
     else
         echo "$i [FAIL]"

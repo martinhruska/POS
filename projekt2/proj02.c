@@ -19,7 +19,7 @@ static int csPasses = 0;
 static int ticket = 0;
 
 // Actual ticket to Critical Section number
-static int ticketToCS = 1;
+static int ticketToCS = 0;
 // Mutex for ticket
 pthread_mutex_t mutexTicket=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexCS=PTHREAD_MUTEX_INITIALIZER;
@@ -37,7 +37,7 @@ int getticket(void)
         return EXIT_FAILURE;
     }
 
-    int myTicket =  ++ticket;
+    int myTicket =  ticket++;
     res = pthread_mutex_unlock(&mutexTicket);
 
     if (res != 0)
@@ -87,7 +87,7 @@ void *threadFunction(void *arg)
     unsigned int seed = curTime.tv_sec*1000000+curTime.tv_usec+id;
     int myTicket = 0;
 
-    while((myTicket = getticket()) <= csPasses)
+    while((myTicket = getticket()) < csPasses)
     { // iterate while not enough passes
         pause.tv_nsec = rand_r(&seed)%500000000L;
         //printf("going to sleep with ticket %d for %d\n",myTicket, pause.tv_nsec);
