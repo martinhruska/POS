@@ -1,3 +1,9 @@
+/**
+ * project: Project 2 @ POS lecture
+ * author: Martin Hruska
+ * e-mail: xhrusk16@stud.fit.vutbr.cz
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -9,6 +15,7 @@ static int csPasses = 0;
 // Number of currenly used ticket
 static int ticket = 0;
 
+// Actual ticket to Critical Section number
 static int ticketToCS = 1;
 // Mutex for ticket
 pthread_mutex_t mutexTicket=PTHREAD_MUTEX_INITIALIZER;
@@ -102,8 +109,10 @@ int main(int argc, char**argv)
     const int csParam = 2;
     if (argc != 3)
     {
-        perror("Wrong numbers of the parameters\n");
-        return EXIT_FAILURE;
+        printf("USAGE: proj02 n m\n");
+        printf("n ... number of threads\n");
+        printf("m ... number of critical section passes\n");
+        return EXIT_SUCCESS;
     }
 
     int threads = atoi(argv[threadsParam]);
