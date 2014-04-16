@@ -18,6 +18,9 @@ pthread_cond_t condMonitor = PTHREAD_COND_INITIALIZER;
 static int cmdLoaded = 0;
 
 
+/*
+ * Parsed command information
+ */
 struct command
 {
     enum specialCmdOpts special;
@@ -26,17 +29,23 @@ struct command
     char **params;
 };
 
+/*
+ * Find index of end of word
+ */
 int findWordEnd(char *str, int start)
 {
     int i = start;
-    while (isspace(str[i]) != 0)
+    while (str[i] != '\0' && isspace(str[i]) != 0)
         ++i;
 
-    while (!isspace(str[i]))
+    while (str[i] != '\0' && !isspace(str[i]))
         ++i;
     return i;
 }
 
+/*
+ * Get word from string
+ */
 char *getWord(char *str, int size)
 { 
     char *res = malloc((1+size)*sizeof(char));
@@ -51,6 +60,9 @@ char *getWord(char *str, int size)
     return res;
 }
 
+/*
+ * Parse command from input string
+ */
 struct command *parseCommand(char *str, int size)
 {
     struct command *resCmd = malloc(sizeof(struct command));
@@ -77,7 +89,7 @@ struct command *parseCommand(char *str, int size)
         ++i;
     }
 
-    resCmd->params = malloc((1+i)*sizeof(char *));
+    resCmd->params = malloc((2+i)*sizeof(char *));
     resCmd->paramsNumber = i;
 
     int start = 0;
@@ -87,10 +99,12 @@ struct command *parseCommand(char *str, int size)
         while(isspace(str[start])) // jump white spaces
             ++start;
         int pend = findWordEnd(str,start);
+        //printf("param: %d %d\n",start, pend);
         resCmd->params[j] = getWord(str+start, pend-start);
-        printf("added $%s$ %d %d\n", resCmd->params[j], start, pend);
+        //printf("added $%s$ %d %d\n", resCmd->params[j], start, pend);
         start = pend;
     }
+    resCmd->params[i+1] = NULL; // terminate array with null pointer
 
     if (i >= 1 && strcmp(resCmd->params[i-1],"&"))
     {
@@ -110,25 +124,43 @@ struct command *parseCommand(char *str, int size)
     return resCmd;
 }
 
+/**
+ * Free alocate memory for command
+ */
 int deleteCommand(struct command* cmd)
 {
-    free(cmd->cmd);
+    if (cmd == NULL)
+    {
+        return 0;
+    }
+    if (cmd->cmd != NULL)
+    {
+        free(cmd->cmd);
+        cmd->cmd = NULL;
+    }
     int i = 0;
     for (i=0; i < cmd->paramsNumber; i++)
     {
         free(cmd->params[i]);
     }
     free(cmd);
+    cmd = NULL;
     return 0;
 }
 
+/*
+ * Just print prompt
+ */
 void printPrompt()
 {
-    printf("\n");
+    //printf("\n");
     printf("~$ ");
     fflush(stdout);
 }
 
+/*
+ * Print current command
+ */
 void printCurrentCommad()
 {
     printf("Command: %s\n",readCmd->cmd);
@@ -136,24 +168,82 @@ void printCurrentCommad()
     int i = 0;
     for(i=0; i < readCmd->paramsNumber+1; i++)
     {
-        printf("%s ",readCmd->params[i]);
+        printf("|%s| ",readCmd->params[i]);
     }
     printf("\n");
 }
 
+int readLine(char *command, size_t max)
+{
+    ssize_t readChars = read(STDIN_FILENO, command, max);
+    int res = 1;
+
+    if (readChars > 512)
+    {
+        /*
+         * skip until eol
+         */
+        char c;
+        while (c != '\n') read(STDIN_FILENO, &c, 1); 
+        printf("Input is over 512 characters and that is too long\n");
+        res = -1;
+    }
+    else if (readChars == 0)
+    {
+        printf("EOF reached\n");
+        res = 0;
+    }
+    else if (readChars < 0)
+    {
+        printf("Some error on reading input\n");
+        res = -1;
+    }
+    else
+    {
+        command[readChars-1] = '\0';
+    }
+
+    return res;
+}
+
+/**
+ * Function for thread reading commands
+ */
 void *readThreadFunction(void *params)
 {
     UNUSED(params);
     printPrompt();
 
     size_t newLineSize=513;
-    char *newLine = malloc(newLineSize*sizeof(char));
 
     while(1)
     {
-        getline(&newLine, &newLineSize, stdin);
+        char *newLine = malloc(newLineSize*sizeof(char));
+        memset(newLine,'\0',newLineSize);
+        //getline(&newLine, &newLineSize, stdin);
+        int resRead = readLine(newLine, newLineSize);
+        if (resRead == 0)
+        {
+            free(newLine);
+            deleteCommand(readCmd);
+            break;
+        }
+        else if (resRead < 0 || strlen(newLine) == 0)
+        { // read failed or no command given
+            free(newLine);
+            printPrompt();
+            continue;
+        }
+        //printf("Read: %s %d\n",newLine, strlen(newLine));
         readCmd = parseCommand(newLine, strlen(newLine));
-        printCurrentCommad();
+        free(newLine);
+        if (readCmd == NULL)
+        {
+            printPrompt();
+            continue;
+        }
+        //printCurrentCommad();
+        //printf("params: %d\n", readCmd->paramsNumber);
 
         cmdLoaded = 1;
         pthread_cond_signal(&condMonitor);
@@ -188,15 +278,22 @@ void parentProc(pid_t child)
 
 void childProc()
 {
+    if (readCmd == NULL)
+    {
+        exit(EXIT_SUCCESS);
+    }
     int ret = execvp (readCmd->cmd, readCmd->params);
     if (ret < 0) 
     {
-        printf("Unable to execute given command\n");
+        printf("Unable to execute given command: %s\n", readCmd->cmd);
         exit(EXIT_FAILURE);
     }
     exit(EXIT_SUCCESS);
 }
 
+/**
+ * Execution of command
+ */
 void executeCommand()
 {   
     pid_t pid = fork();
@@ -215,6 +312,9 @@ void executeCommand()
     }
 }
 
+/**
+ * Function for thread which executes commands
+ */
 void *commandThreadFunction(void *params)
 {
     UNUSED(params);
@@ -227,10 +327,11 @@ void *commandThreadFunction(void *params)
         }
         pthread_mutex_unlock(&mutex);
         
-        printf("Command thread is here\n");
-        printCurrentCommad();
+        //printf("Command thread is here\n");
+        //printCurrentCommad();
         if (!strcmp(readCmd->cmd, "exit"))
         {
+            deleteCommand(readCmd);
             break;
         }
         executeCommand();
