@@ -11,12 +11,13 @@
 
 enum specialCmdOpts {NONE, BCG, IN, OUT};
 static struct command *readCmd = NULL;
+pid_t pid=1;
 
 // synchronization tools
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condMonitor = PTHREAD_COND_INITIALIZER;
 static int cmdLoaded = 0;
-
+int inter = 0;
 
 /*
  * Parsed command information
@@ -28,6 +29,42 @@ struct command
     int paramsNumber;
     char **params;
 };
+
+/*
+ * Just print prompt
+ */
+void printPrompt()
+{
+    //printf("\n");
+    printf("~$ ");
+    fflush(stdout);
+}
+
+void handleChld(int sig)
+{
+    if (sig == SIGCHLD)
+    {
+        int res = 0;
+        pid_t pid = wait(&res);
+        printf("Child: %d ends with %d \n", pid, res);
+    }
+}
+
+void handleInt(int sig)
+{
+    if (sig == SIGINT)
+    {
+        if (pid == 0)
+        {
+            exit(EXIT_SUCCESS);
+        }
+        else
+        {
+            printf("\n");
+            printPrompt();
+        }
+    }
+}
 
 /*
  * Find index of end of word
@@ -149,16 +186,6 @@ int deleteCommand(struct command* cmd)
 }
 
 /*
- * Just print prompt
- */
-void printPrompt()
-{
-    //printf("\n");
-    printf("~$ ");
-    fflush(stdout);
-}
-
-/*
  * Print current command
  */
 void printCurrentCommad()
@@ -276,19 +303,19 @@ void parentProc(pid_t child)
     }
 }
 
-void childProc()
+int childProc()
 {
     if (readCmd == NULL)
     {
-        exit(EXIT_SUCCESS);
+        return EXIT_SUCCESS;
     }
     int ret = execvp (readCmd->cmd, readCmd->params);
     if (ret < 0) 
     {
         printf("Unable to execute given command: %s\n", readCmd->cmd);
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
-    exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
 }
 
 /**
@@ -296,14 +323,15 @@ void childProc()
  */
 void executeCommand()
 {   
-    pid_t pid = fork();
+    pid = fork();
     if (pid > 0)
     {
         parentProc(pid); 
     } 
     else if (pid == 0)
     {
-        childProc();
+        int res = childProc();
+        exit(res);
     }
     else if (pid < 0)
     {
@@ -345,6 +373,41 @@ void *commandThreadFunction(void *params)
 
 int main(void)
 {
+    struct sigaction sigact;
+    struct sigaction sigchld;
+    sigset_t setint;
+    sigset_t setchld;
+
+    
+    sigemptyset(&setint);
+    sigaddset(&setint, SIGINT);
+    
+    sigemptyset(&setchld);
+    sigaddset(&setchld, SIGCHLD);
+
+    // Init my own handlers
+    sigprocmask(SIG_BLOCK, &setint, NULL);
+
+    // catch sigint signal
+    sigact.sa_handler = handleInt;
+    sigemptyset(&sigact.sa_mask);
+    sigact.sa_flags = 0;
+    if (sigaction(SIGINT, &sigact, NULL) == -1)
+    {
+        return 1;
+    }
+
+    // catch sigchld signal
+    sigchld.sa_handler = handleChld;
+    sigemptyset(&sigchld.sa_mask);
+    sigchld.sa_flags = 0;
+    if (sigaction(SIGCHLD, &sigchld, NULL) == -1)
+    {
+        return 1;
+    }
+    
+    sigprocmask(SIG_UNBLOCK, &setint, NULL);
+
     pthread_t readThread;
     pthread_t commandThread;
     pthread_attr_t attr;
