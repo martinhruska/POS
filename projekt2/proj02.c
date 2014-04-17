@@ -94,9 +94,9 @@ int main(int argc, char**argv)
     const int csParam = 2;
     if (argc != 3)
     {
-        printf("USAGE: proj02 n m\n");
-        printf("n ... number of threads\n");
-        printf("m ... number of critical section passes\n");
+        fprintf(stderr, "USAGE: proj02 n m\n");
+        fprintf(stderr, "n ... number of threads\n");
+        fprintf(stderr, "m ... number of critical section passes\n");
         return EXIT_SUCCESS;
     }
 
@@ -111,13 +111,13 @@ int main(int argc, char**argv)
     int res = pthread_attr_init(&attr);
     if (res != 0)
     {
-        printf("pthread_attr error: %d\n", res);
+        fprintf(stderr,"pthread_attr error: %d\n", res);
         return EXIT_FAILURE;
     }
 
     if ((res = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE)) != 0)
     {
-        printf("pthread_attr set detach error: %d\n", res);
+        fprintf(stderr,"pthread_attr set detach error: %d\n", res);
         return EXIT_FAILURE;
     }
 
@@ -128,7 +128,7 @@ int main(int argc, char**argv)
         ids[i] = i+1;
         if ((res = pthread_create(&pts[i], &attr, threadFunction, (void *) &ids[i])) != 0)
         {
-            printf("pthread create error: %d\n", res);
+            fprintf(stderr,"pthread create error: %d\n", res);
             return EXIT_FAILURE;
         }
     }
@@ -145,7 +145,7 @@ int main(int argc, char**argv)
 
     if (!threadsOk)
     {
-        printf("pthread join error: %d\n", res);
+        fprintf(stderr,"pthread join error: %d\n", res);
         return EXIT_FAILURE;
     }
 
