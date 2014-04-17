@@ -249,23 +249,6 @@ struct command *parseCommand(char *str, int size)
     resCmd->paramsNumber = i-specials;
     resCmd->params[resCmd->paramsNumber+1] = NULL; // terminate array with null pointer
 
-    /*
-    if (i >= 1 && !strcmp(resCmd->params[i],"&"))
-    {
-        resCmd->special = BCG;
-    }
-    else if (i >= 1 && !strcmp(resCmd->params[i-1],"<"))
-    {
-        resCmd->special = IN;
-    }
-    else if (i >= 1 && !strcmp(resCmd->params[i-1],">"))
-    {
-        resCmd->special = OUT;
-    }
-    else
-        resCmd->special = NONE;
-        */
-
     return resCmd;
 }
 
