@@ -3,9 +3,11 @@
 #include <ctype.h>
 #include <string.h>
 
+#include <error.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <wait.h>
+#include <fcntl.h>
 
 #define UNUSED(x) (void)(x)
 
@@ -17,7 +19,8 @@ pid_t pid=1;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condMonitor = PTHREAD_COND_INITIALIZER;
 static int cmdLoaded = 0;
-int inter = 0;
+static int inter = 0;
+static int jobs = 0;
 
 /*
  * Parsed command information
@@ -27,6 +30,8 @@ struct command
     enum specialCmdOpts special;
     char *cmd;
     int paramsNumber;
+    char *output;
+    char *input;
     char **params;
 };
 
@@ -46,7 +51,12 @@ void handleChld(int sig)
     {
         int res = 0;
         pid_t pid = wait(&res);
-        printf("Child: %d ends with %d \n", pid, res);
+        if (pid != -1)
+        {
+            --jobs;
+            printf("Done \t %d\n",pid);
+        }
+        //printf("Child: %d ends with %d \n", pid, res);
     }
 }
 
@@ -62,6 +72,7 @@ void handleInt(int sig)
         {
             printf("\n");
             printPrompt();
+            inter = 1;
         }
     }
 }
@@ -97,6 +108,47 @@ char *getWord(char *str, int size)
     return res;
 }
 
+/**
+ * Free alocate memory for command
+ */
+int deleteCommand(struct command* cmd)
+{
+    if (cmd == NULL)
+    {
+        return 0;
+    }
+    if (cmd->cmd != NULL)
+    {
+        free(cmd->cmd);
+        cmd->cmd = NULL;
+    }
+    int i = 0;
+    for (i=0; i < cmd->paramsNumber; i++)
+    {
+        if (cmd->params[i] != NULL)
+        {
+            free(cmd->params[i]);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    if (cmd->output != NULL)
+    {
+        free(cmd->output);
+    }
+    if (cmd->input != NULL)
+    {
+        free(cmd->input);
+    }
+
+    free(cmd);
+    cmd = NULL;
+    return 0;
+}
+
 /*
  * Parse command from input string
  */
@@ -126,63 +178,95 @@ struct command *parseCommand(char *str, int size)
         ++i;
     }
 
+    // plus one is name of command, plus one is terminating string
     resCmd->params = malloc((2+i)*sizeof(char *));
-    resCmd->paramsNumber = i;
+    resCmd->input = NULL;
+    resCmd->output = NULL;
+    resCmd->special = NONE;
 
     int start = 0;
     int j = 0;
+    int specials = 0;
+    enum specialCmdOpts state = NONE;
     for(j=0; j<i+1; ++j)
     { // save params
         while(isspace(str[start])) // jump white spaces
             ++start;
         int pend = findWordEnd(str,start);
         //printf("param: %d %d\n",start, pend);
-        resCmd->params[j] = getWord(str+start, pend-start);
+        char *temp = getWord(str+start, pend-start);
+
+        if (!strcmp(temp,"&"))
+        {
+            resCmd->special = BCG;
+            free(temp);
+            ++specials;
+        }
+        else if (!strcmp(temp,"<"))
+        {
+            if (j+1 == i+1)
+            { // end of params
+                resCmd->params[j] = NULL;
+                deleteCommand(resCmd);
+                return NULL;
+            }
+            free(temp);
+            state = IN;
+            ++specials;
+        }
+        else if (!strcmp(temp,">"))
+        {
+            if (j+1 == i+1)
+            { // end of params
+                resCmd->params[j] = NULL;
+                deleteCommand(resCmd);
+                return NULL;
+            }
+            free(temp);
+            state = OUT;
+            ++specials;
+        }
+        else if (state == IN)
+        {
+            resCmd->input = temp;
+            state = NONE;
+            ++specials;
+        }
+        else if (state == OUT)
+        {
+            resCmd->output = temp;
+            state = NONE;
+            ++specials;
+        }
+        else
+        {
+            resCmd->params[j] = temp;
+        }
         //printf("added $%s$ %d %d\n", resCmd->params[j], start, pend);
         start = pend;
-    }
-    resCmd->params[i+1] = NULL; // terminate array with null pointer
 
-    if (i >= 1 && strcmp(resCmd->params[i-1],"&"))
+    }
+    resCmd->paramsNumber = i-specials;
+    resCmd->params[resCmd->paramsNumber+1] = NULL; // terminate array with null pointer
+
+    /*
+    if (i >= 1 && !strcmp(resCmd->params[i],"&"))
     {
         resCmd->special = BCG;
     }
-    else if (i >= 1 && strcmp(resCmd->params[i-1],"<"))
+    else if (i >= 1 && !strcmp(resCmd->params[i-1],"<"))
     {
         resCmd->special = IN;
     }
-    else if (i >= 1 && strcmp(resCmd->params[i-1],">"))
+    else if (i >= 1 && !strcmp(resCmd->params[i-1],">"))
     {
         resCmd->special = OUT;
     }
     else
         resCmd->special = NONE;
+        */
 
     return resCmd;
-}
-
-/**
- * Free alocate memory for command
- */
-int deleteCommand(struct command* cmd)
-{
-    if (cmd == NULL)
-    {
-        return 0;
-    }
-    if (cmd->cmd != NULL)
-    {
-        free(cmd->cmd);
-        cmd->cmd = NULL;
-    }
-    int i = 0;
-    for (i=0; i < cmd->paramsNumber; i++)
-    {
-        free(cmd->params[i]);
-    }
-    free(cmd);
-    cmd = NULL;
-    return 0;
 }
 
 /*
@@ -280,6 +364,7 @@ void *readThreadFunction(void *params)
             break;
         }
 
+        inter = 0; // interepted before waiting
         pthread_mutex_lock(&mutex);
         while(cmdLoaded)
         {
@@ -288,7 +373,10 @@ void *readThreadFunction(void *params)
         pthread_mutex_unlock(&mutex);
         deleteCommand(readCmd);
 
-        printPrompt();
+        if (!inter)
+        { // if there were no interuptions, print prompt
+            printPrompt();
+        }
     }
     return NULL;
 }
@@ -296,11 +384,59 @@ void *readThreadFunction(void *params)
 void parentProc(pid_t child)
 {
     int status = 0;
-    waitpid(child, &status, 0);
-    if (status != EXIT_SUCCESS)
+    if (readCmd->special != BCG)
     {
-        printf("Unable to process children\n");
+        waitpid(child, &status, 0);
     }
+    else
+    {
+        ++jobs;
+        printf("[%d] %d\n",jobs, child);
+    }
+}
+
+int prepareOut()
+{
+    if (readCmd == NULL)
+    {
+        return 0;
+    }
+
+    if (readCmd->output == NULL)
+    { // stdout, nothing to do
+        return 0;
+    }
+
+    int newOut = open(readCmd->output, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    if (newOut == -1)
+    {
+        return -1;
+    }
+    close(STDOUT_FILENO); // close stdout
+    dup2(newOut, STDOUT_FILENO); // create a new fileno
+    return 0;
+}
+
+int prepareIn()
+{
+    if (readCmd == NULL)
+    {
+        return 0;
+    }
+
+    if (readCmd->input == NULL)
+    { // stdout, nothing to do
+        return 0;
+    }
+
+    int newOut = open(readCmd->input, O_CREAT | O_RDONLY);
+    if (newOut == -1)
+    {
+        return -1;
+    }
+    close(STDIN_FILENO); // close stdout
+    dup2(newOut, STDIN_FILENO); // create a new fileno
+    return 0;
 }
 
 int childProc()
@@ -309,10 +445,20 @@ int childProc()
     {
         return EXIT_SUCCESS;
     }
+    if (prepareOut() < 0 )
+    {
+        printf("Unable to open output: %s", readCmd->output);
+        return EXIT_FAILURE;
+    }
+    if (prepareIn() < 0 )
+    {
+        printf("Unable to input output: %s", readCmd->input);
+        return EXIT_FAILURE;
+    }
     int ret = execvp (readCmd->cmd, readCmd->params);
     if (ret < 0) 
     {
-        printf("Unable to execute given command: %s\n", readCmd->cmd);
+        fprintf(stderr, "Unable to execute given command: %s\n", readCmd->cmd);
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
