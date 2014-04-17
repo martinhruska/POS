@@ -3,7 +3,6 @@
 #include <ctype.h>
 #include <string.h>
 
-#include <error.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <wait.h>
