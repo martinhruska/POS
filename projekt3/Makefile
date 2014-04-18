@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -g -pthread -O
-PROJ=proj3
+CFLAGS=-Wall -Wextra -ansi -pthread
+PROJ=proj03
 
 all: $(PROJ)
 
