@@ -619,12 +619,12 @@ int main(void)
     int res = pthread_attr_init(&attr);
     if (res != 0)
     {
-        printf("pthread_attr error: %d\n", res);
+        fprintf(stderr, "pthread_attr error: %d\n", res);
         return EXIT_FAILURE;
     }
     if ((res = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE)) != 0)
     {
-        printf("pthread_attr set detach error: %d\n", res);
+        fprintf(stderr, "pthread_attr set detach error: %d\n", res);
         return EXIT_FAILURE;
     }
 
@@ -633,12 +633,12 @@ int main(void)
      */
     if ((res = pthread_create(&readThread, &attr, readThreadFunction, NULL)) != 0)
     {
-        printf("pthread create error: %d\n", res);
+        fprintf(stderr, "pthread create error: %d\n", res);
         return EXIT_FAILURE;
     }
     if ((res = pthread_create(&commandThread, &attr, commandThreadFunction, NULL)) != 0)
     {
-        printf("pthread create error: %d\n", res);
+        fprintf(stderr, "pthread create error: %d\n", res);
         return EXIT_FAILURE;
     }
 
@@ -648,7 +648,7 @@ int main(void)
     int result = -1;
     if ((res = pthread_join(readThread, (void *) &result)) != 0)
     {
-        printf("pthread join error: %d\n", res);
+        fprintf(stderr,"pthread join error: %d\n", res);
         return EXIT_FAILURE;
     }
     if ((res = pthread_join(commandThread, (void *) &result)) != 0)
