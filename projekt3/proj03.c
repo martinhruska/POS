@@ -470,7 +470,7 @@ int prepareIn()
         return 0;
     }
 
-    int newOut = open(readCmd->input, O_CREAT | O_RDONLY);
+    int newOut = open(readCmd->input, O_RDONLY);
     if (newOut == -1)
     {
         return -1;
@@ -494,12 +494,12 @@ int childProc()
     }
     if (prepareOut() < 0 )
     {
-        printf("Unable to open output: %s", readCmd->output);
+        fprintf(stderr, "Unable to open output: %s\n", readCmd->output);
         return EXIT_FAILURE;
     }
     if (prepareIn() < 0 )
     {
-        printf("Unable to input output: %s", readCmd->input);
+        fprintf(stderr, "Unable to open input: %s\n", readCmd->input);
         return EXIT_FAILURE;
     }
     int ret = execvp (readCmd->cmd, readCmd->params);
