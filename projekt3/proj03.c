@@ -1,5 +1,11 @@
 #define _XOPEN_SOURCE
 
+/**
+ * Project 3 @ POS Lecture
+ * author: Martin Hruska
+ * e-mail: xhrusk16@stud.fit.vutbr.cz
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -179,18 +185,14 @@ struct command *parseCommand(char *str, int size)
 
     int i = 0;
     int end = cend;
-    /*
-     * get number of params
-     */
+    /* get number of params */
     while( end < size-1 )
     {
         end = findWordEnd(str, end);
         ++i;
     }
 
-    /*
-     * plus one is name of command, plus one is terminating string
-     */
+    /* plus one is name of command, plus one is terminating string */
     resCmd->params = malloc((2+i)*sizeof(char *));
     resCmd->input = NULL;
     resCmd->output = NULL;
@@ -200,14 +202,10 @@ struct command *parseCommand(char *str, int size)
     int j = 0;
     int specials = 0;
     enum specialCmdOpts state = NONE;
-    /*
-     * save params
-     */
+    /* save params */
     for(j=0; j<i+1; ++j)
     {
-        /*
-         * jump white spaces
-         */
+        /* jump white spaces */
         while(isspace(str[start]))
             ++start;
         int pend = findWordEnd(str,start);
@@ -224,9 +222,7 @@ struct command *parseCommand(char *str, int size)
         }
         else if (!strcmp(temp,"<"))
         {
-            /*
-             * end of params -> no input file
-             */
+            /* end of params -> no input file */
             if (j+1 == i+1)
             {
                 resCmd->params[j] = NULL;
@@ -239,9 +235,7 @@ struct command *parseCommand(char *str, int size)
         }
         else if (!strcmp(temp,">"))
         {
-            /*
-             * end of params -> no output file
-             */
+            /* end of params -> no output file */
             if (j+1 == i+1)
             {
                 resCmd->params[j] = NULL;
@@ -275,9 +269,7 @@ struct command *parseCommand(char *str, int size)
 
     }
     resCmd->paramsNumber = i-specials;
-    /*
-     * terminate array with null pointer
-     */
+    /* terminate array with null pointer */
     resCmd->params[resCmd->paramsNumber+1] = NULL;
 
     return resCmd;
@@ -298,6 +290,9 @@ void printCurrentCommad()
     printf("\n");
 }
 
+/**
+ * Read line, checks its size and saves it to given buffer
+ */
 int readLine(char *command, size_t max)
 {
     ssize_t readChars = read(STDIN_FILENO, command, max);
@@ -305,9 +300,7 @@ int readLine(char *command, size_t max)
 
     if (readChars > 512)
     {
-        /*
-         * skip until eol
-         */
+        /* skip until eol */
         char c;
         while (c != '\n') read(STDIN_FILENO, &c, 1); 
         fprintf(stderr,"Input is over 512 characters and that is too long\n");
@@ -355,18 +348,14 @@ void *readThreadFunction(void *params)
             deleteCommand(readCmd);
             break;
         }
-        /*
-         * read failed or no command given
-         */
+        /* read failed or no command given */
         else if (resRead < 0 || strlen(newLine) == 0)
         {
             free(newLine);
             printPrompt();
             continue;
         }
-        /*
-         * printf("Read: %s %d\n",newLine, strlen(newLine));
-         */
+        /* printf("Read: %s %d\n",newLine, strlen(newLine)); */
         readCmd = parseCommand(newLine, strlen(newLine));
         free(newLine);
         if (readCmd == NULL)
@@ -387,9 +376,7 @@ void *readThreadFunction(void *params)
             break;
         }
 
-        /*
-         * interupted before waiting
-         */
+        /* interupted before waiting */
         inter = 0;
         pthread_mutex_lock(&mutex);
         while(cmdLoaded)
@@ -399,9 +386,7 @@ void *readThreadFunction(void *params)
         pthread_mutex_unlock(&mutex);
         deleteCommand(readCmd);
 
-        /*
-         * if there were no interuptions, print prompt
-         */
+        /* if there were no interuptions, print prompt */
         if (!inter)
         {
             printPrompt();
@@ -410,6 +395,9 @@ void *readThreadFunction(void *params)
     return NULL;
 }
 
+/**
+ * Process of parent.
+ */
 void parentProc(pid_t child)
 {
     int status = 0;
@@ -424,6 +412,9 @@ void parentProc(pid_t child)
     }
 }
 
+/**
+ * Prepare output for children
+ */
 int prepareOut()
 {
     if (readCmd == NULL)
@@ -431,9 +422,7 @@ int prepareOut()
         return 0;
     }
 
-    /*
-     * stdout, nothing to do
-     */
+    /* stdout, nothing to do */
     if (readCmd->output == NULL)
     {
         return 0;
@@ -444,17 +433,16 @@ int prepareOut()
     {
         return -1;
     }
-    /*
-     * close stdout
-     */
+    /* close stdout */
     close(STDOUT_FILENO);
-    /*
-     * create a new fileno
-     */
+    /* create a new fileno */
     dup2(newOut, STDOUT_FILENO);
     return 0;
 }
 
+/**
+ * Prepare input for children
+ */
 int prepareIn()
 {
     if (readCmd == NULL)
@@ -462,9 +450,7 @@ int prepareIn()
         return 0;
     }
 
-    /*
-     * stdout, nothing to do
-     */
+    /* stdout, nothing to do */
     if (readCmd->input == NULL)
     { 
         return 0;
@@ -475,17 +461,16 @@ int prepareIn()
     {
         return -1;
     }
-    /*
-     * close stdout
-     */
+    /* close stdout */
     close(STDIN_FILENO);
-    /*
-     * create a new fileno
-     */
+    /* create a new fileno */
     dup2(newOut, STDIN_FILENO);
     return 0;
 }
 
+/**
+ * Children process function
+ */
 int childProc()
 {
     if (readCmd == NULL)
@@ -580,14 +565,10 @@ int main(void)
     sigemptyset(&setchld);
     sigaddset(&setchld, SIGCHLD);
 
-    /*
-     * Init my own handlers
-     */
+    /* Init my own handlers */
     sigprocmask(SIG_BLOCK, &setint, NULL);
 
-    /*
-     * catch sigint signal
-     */
+    /* catch sigint signal */
     sigact.sa_handler = handleInt;
     sigemptyset(&sigact.sa_mask);
     sigact.sa_flags = 0;
@@ -596,9 +577,7 @@ int main(void)
         return 1;
     }
 
-    /*
-     * catch sigchld signal
-     */
+    /* catch sigchld signal */
     sigchld.sa_handler = handleChld;
     sigemptyset(&sigchld.sa_mask);
     sigchld.sa_flags = 0;
@@ -613,9 +592,7 @@ int main(void)
     pthread_t commandThread;
     pthread_attr_t attr;
 
-    /*
-     * Initiate attributes
-     */
+    /* Initiate attributes */
     int res = pthread_attr_init(&attr);
     if (res != 0)
     {
@@ -628,9 +605,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    /*
-     * create threads
-     */
+    /* create threads */
     if ((res = pthread_create(&readThread, &attr, readThreadFunction, NULL)) != 0)
     {
         fprintf(stderr, "pthread create error: %d\n", res);
@@ -642,9 +617,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    /*
-     * join thread
-     */
+    /* join thread */
     int result = -1;
     if ((res = pthread_join(readThread, (void *) &result)) != 0)
     {
