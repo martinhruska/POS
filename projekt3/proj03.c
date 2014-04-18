@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -14,7 +16,9 @@ enum specialCmdOpts {NONE, BCG, IN, OUT};
 static struct command *readCmd = NULL;
 pid_t pid=1;
 
-// synchronization tools
+/*
+ * synchronization tools
+ */
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condMonitor = PTHREAD_COND_INITIALIZER;
 static int cmdLoaded = 0;
@@ -39,7 +43,9 @@ struct command
  */
 void printPrompt()
 {
-    //printf("\n");
+    /*
+     * printf("\n");
+     */
     printf("~$ ");
     fflush(stdout);
 }
@@ -55,7 +61,9 @@ void handleChld(int sig)
             --jobs;
             printf("Done \t %d\n",pid);
         }
-        //printf("Child: %d ends with %d \n", pid, res);
+        /*
+         * printf("Child: %d ends with %d \n", pid, res);
+         */
     }
 }
 
@@ -98,7 +106,7 @@ char *getWord(char *str, int size)
     char *res = malloc((1+size)*sizeof(char));
     if (res == NULL)
     {
-        printf("malloc error: Internal error\n");
+        fprintf(stderr,"malloc error: Internal error\n");
         return NULL;
     }
     
@@ -157,27 +165,32 @@ struct command *parseCommand(char *str, int size)
 
     if (resCmd == NULL)
     {
-        printf("malloc error: Cannot alocate new command\n");
+        fprintf(stderr, "malloc error: Cannot alocate new command\n");
         return NULL;
     }
     int cend = findWordEnd(str,0);
     char *cmdName = getWord(str, cend);
     if (cmdName == NULL)
     {
-        printf("malloc error: Internal error\n");
+        fprintf(stderr, "malloc error: Internal error\n");
         return NULL;
     }
     resCmd->cmd = cmdName;
 
     int i = 0;
     int end = cend;
+    /*
+     * get number of params
+     */
     while( end < size-1 )
-    { // get number of params
+    {
         end = findWordEnd(str, end);
         ++i;
     }
 
-    // plus one is name of command, plus one is terminating string
+    /*
+     * plus one is name of command, plus one is terminating string
+     */
     resCmd->params = malloc((2+i)*sizeof(char *));
     resCmd->input = NULL;
     resCmd->output = NULL;
@@ -187,12 +200,20 @@ struct command *parseCommand(char *str, int size)
     int j = 0;
     int specials = 0;
     enum specialCmdOpts state = NONE;
+    /*
+     * save params
+     */
     for(j=0; j<i+1; ++j)
-    { // save params
-        while(isspace(str[start])) // jump white spaces
+    {
+        /*
+         * jump white spaces
+         */
+        while(isspace(str[start]))
             ++start;
         int pend = findWordEnd(str,start);
-        //printf("param: %d %d\n",start, pend);
+        /*
+         * printf("param: %d %d\n",start, pend);
+         */
         char *temp = getWord(str+start, pend-start);
 
         if (!strcmp(temp,"&"))
@@ -203,8 +224,11 @@ struct command *parseCommand(char *str, int size)
         }
         else if (!strcmp(temp,"<"))
         {
+            /*
+             * end of params -> no input file
+             */
             if (j+1 == i+1)
-            { // end of params
+            {
                 resCmd->params[j] = NULL;
                 deleteCommand(resCmd);
                 return NULL;
@@ -215,8 +239,11 @@ struct command *parseCommand(char *str, int size)
         }
         else if (!strcmp(temp,">"))
         {
+            /*
+             * end of params -> no output file
+             */
             if (j+1 == i+1)
-            { // end of params
+            {
                 resCmd->params[j] = NULL;
                 deleteCommand(resCmd);
                 return NULL;
@@ -241,12 +268,17 @@ struct command *parseCommand(char *str, int size)
         {
             resCmd->params[j] = temp;
         }
-        //printf("added $%s$ %d %d\n", resCmd->params[j], start, pend);
+        /*
+         * printf("added $%s$ %d %d\n", resCmd->params[j], start, pend);
+         */
         start = pend;
 
     }
     resCmd->paramsNumber = i-specials;
-    resCmd->params[resCmd->paramsNumber+1] = NULL; // terminate array with null pointer
+    /*
+     * terminate array with null pointer
+     */
+    resCmd->params[resCmd->paramsNumber+1] = NULL;
 
     return resCmd;
 }
@@ -278,17 +310,17 @@ int readLine(char *command, size_t max)
          */
         char c;
         while (c != '\n') read(STDIN_FILENO, &c, 1); 
-        printf("Input is over 512 characters and that is too long\n");
+        fprintf(stderr,"Input is over 512 characters and that is too long\n");
         res = -1;
     }
     else if (readChars == 0)
     {
-        printf("EOF reached\n");
+        fprintf(stderr,"EOF reached\n");
         res = 0;
     }
     else if (readChars < 0)
     {
-        printf("Some error on reading input\n");
+        fprintf(stderr,"Some error on reading input\n");
         res = -1;
     }
     else
@@ -313,7 +345,9 @@ void *readThreadFunction(void *params)
     {
         char *newLine = malloc(newLineSize*sizeof(char));
         memset(newLine,'\0',newLineSize);
-        //getline(&newLine, &newLineSize, stdin);
+        /*
+         * getline(&newLine, &newLineSize, stdin);
+         */
         int resRead = readLine(newLine, newLineSize);
         if (resRead == 0)
         {
@@ -321,13 +355,18 @@ void *readThreadFunction(void *params)
             deleteCommand(readCmd);
             break;
         }
+        /*
+         * read failed or no command given
+         */
         else if (resRead < 0 || strlen(newLine) == 0)
-        { // read failed or no command given
+        {
             free(newLine);
             printPrompt();
             continue;
         }
-        //printf("Read: %s %d\n",newLine, strlen(newLine));
+        /*
+         * printf("Read: %s %d\n",newLine, strlen(newLine));
+         */
         readCmd = parseCommand(newLine, strlen(newLine));
         free(newLine);
         if (readCmd == NULL)
@@ -335,8 +374,10 @@ void *readThreadFunction(void *params)
             printPrompt();
             continue;
         }
-        //printCurrentCommad();
-        //printf("params: %d\n", readCmd->paramsNumber);
+        /*
+         * printCurrentCommad();
+         * printf("params: %d\n", readCmd->paramsNumber);
+         */
 
         cmdLoaded = 1;
         pthread_cond_signal(&condMonitor);
@@ -346,7 +387,10 @@ void *readThreadFunction(void *params)
             break;
         }
 
-        inter = 0; // interepted before waiting
+        /*
+         * interupted before waiting
+         */
+        inter = 0;
         pthread_mutex_lock(&mutex);
         while(cmdLoaded)
         {
@@ -355,8 +399,11 @@ void *readThreadFunction(void *params)
         pthread_mutex_unlock(&mutex);
         deleteCommand(readCmd);
 
+        /*
+         * if there were no interuptions, print prompt
+         */
         if (!inter)
-        { // if there were no interuptions, print prompt
+        {
             printPrompt();
         }
     }
@@ -384,8 +431,11 @@ int prepareOut()
         return 0;
     }
 
+    /*
+     * stdout, nothing to do
+     */
     if (readCmd->output == NULL)
-    { // stdout, nothing to do
+    {
         return 0;
     }
 
@@ -394,8 +444,14 @@ int prepareOut()
     {
         return -1;
     }
-    close(STDOUT_FILENO); // close stdout
-    dup2(newOut, STDOUT_FILENO); // create a new fileno
+    /*
+     * close stdout
+     */
+    close(STDOUT_FILENO);
+    /*
+     * create a new fileno
+     */
+    dup2(newOut, STDOUT_FILENO);
     return 0;
 }
 
@@ -406,8 +462,11 @@ int prepareIn()
         return 0;
     }
 
+    /*
+     * stdout, nothing to do
+     */
     if (readCmd->input == NULL)
-    { // stdout, nothing to do
+    { 
         return 0;
     }
 
@@ -416,8 +475,14 @@ int prepareIn()
     {
         return -1;
     }
-    close(STDIN_FILENO); // close stdout
-    dup2(newOut, STDIN_FILENO); // create a new fileno
+    /*
+     * close stdout
+     */
+    close(STDIN_FILENO);
+    /*
+     * create a new fileno
+     */
+    dup2(newOut, STDIN_FILENO);
     return 0;
 }
 
@@ -482,9 +547,11 @@ void *commandThreadFunction(void *params)
             pthread_cond_wait(&condMonitor, &mutex);
         }
         pthread_mutex_unlock(&mutex);
-        
-        //printf("Command thread is here\n");
-        //printCurrentCommad();
+       
+        /*
+         * printf("Command thread is here\n");
+         * printCurrentCommad();
+         */
         if (!strcmp(readCmd->cmd, "exit"))
         {
             deleteCommand(readCmd);
@@ -513,10 +580,14 @@ int main(void)
     sigemptyset(&setchld);
     sigaddset(&setchld, SIGCHLD);
 
-    // Init my own handlers
+    /*
+     * Init my own handlers
+     */
     sigprocmask(SIG_BLOCK, &setint, NULL);
 
-    // catch sigint signal
+    /*
+     * catch sigint signal
+     */
     sigact.sa_handler = handleInt;
     sigemptyset(&sigact.sa_mask);
     sigact.sa_flags = 0;
@@ -525,7 +596,9 @@ int main(void)
         return 1;
     }
 
-    // catch sigchld signal
+    /*
+     * catch sigchld signal
+     */
     sigchld.sa_handler = handleChld;
     sigemptyset(&sigchld.sa_mask);
     sigchld.sa_flags = 0;
@@ -540,7 +613,9 @@ int main(void)
     pthread_t commandThread;
     pthread_attr_t attr;
 
-    // Initiate attributes
+    /*
+     * Initiate attributes
+     */
     int res = pthread_attr_init(&attr);
     if (res != 0)
     {
@@ -553,7 +628,9 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    // create threads
+    /*
+     * create threads
+     */
     if ((res = pthread_create(&readThread, &attr, readThreadFunction, NULL)) != 0)
     {
         printf("pthread create error: %d\n", res);
@@ -565,7 +642,9 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    // join thread
+    /*
+     * join thread
+     */
     int result = -1;
     if ((res = pthread_join(readThread, (void *) &result)) != 0)
     {
@@ -574,7 +653,7 @@ int main(void)
     }
     if ((res = pthread_join(commandThread, (void *) &result)) != 0)
     {
-        printf("pthread join error: %d\n", res);
+        fprintf(stderr,"pthread join error: %d\n", res);
         return EXIT_FAILURE;
     }
 
