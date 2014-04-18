@@ -3,7 +3,7 @@
 # e-mail: xhrusk16@stud.fit.vutbr.cz
 
 CC=gcc
-CFLAGS=-Wall -ansi -std=c99 -Wextra -g -O
+CFLAGS=-Wall -ansi -Wextra -g -O
 PROJ=proj01
 
 all: $(PROJ)

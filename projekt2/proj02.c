@@ -1,6 +1,9 @@
 #define _POSIX_C_SOURCE 199506L
 #define _XOPEN_SOURCE 500
 
+#ifndef _REENTRANT
+#define _REENTRANT
+
 /**
  * project: Project 2 @ POS lecture
  * author: Martin Hruska
@@ -13,14 +16,22 @@
 #include <pthread.h>
 #include <sys/time.h>
 
-// Wanted critical section passes
+/*
+ * Wanted critical section passes
+ */
 static int csPasses = 0;
-// Number of currenly used ticket
+/*
+ * Number of currenly used ticket
+ */
 static int ticket = 0;
 
-// Actual ticket to Critical Section number
+/*
+ * Actual ticket to Critical Section number
+ */
 static int ticketToCS = 0;
-// Mutex for ticket
+/*
+ * Mutex for ticket
+ */
 pthread_mutex_t mutexTicket=PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexCS=PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t mutexCSCond=PTHREAD_COND_INITIALIZER;
@@ -73,8 +84,11 @@ void *threadFunction(void *arg)
     unsigned int seed = curTime.tv_sec*1000000+curTime.tv_usec+id;
     int myTicket = 0;
 
+    /*
+     * iterate while not enough passes
+     */
     while((myTicket = getticket()) < csPasses)
-    { // iterate while not enough passes
+    { 
         pause.tv_nsec = rand_r(&seed)%500000000L;
         nanosleep(&pause, NULL);
         await(myTicket);
@@ -100,14 +114,18 @@ int main(int argc, char**argv)
         return EXIT_SUCCESS;
     }
 
-    // parse parameters
+    /*
+     * parse parameters
+     */
     int threads = atoi(argv[threadsParam]);
     csPasses = atoi(argv[csParam]);
 
     pthread_t pts[threads];
     pthread_attr_t attr;
 
-    // initiate attributes
+    /*
+     * initiate attributes
+     */
     int res = pthread_attr_init(&attr);
     if (res != 0)
     {
@@ -123,8 +141,11 @@ int main(int argc, char**argv)
 
     int ids[threads];
     int i = 0;
+    /*
+     * create threads
+     */
     for (i=0; i < threads; ++i)
-    { // create threads
+    {
         ids[i] = i+1;
         if ((res = pthread_create(&pts[i], &attr, threadFunction, (void *) &ids[i])) != 0)
         {
@@ -134,8 +155,11 @@ int main(int argc, char**argv)
     }
 
     int threadsOk = 1;
+    /*
+     * join threads
+     */
     for (i=0; i < threads; ++i)
-    { // join threads
+    {
         int result = -1;
         if ((res = pthread_join(pts[i], (void *) &result)) != 0)
         {
@@ -151,3 +175,5 @@ int main(int argc, char**argv)
 
     return EXIT_SUCCESS;
 }
+
+#endif

@@ -25,10 +25,13 @@ void handleInt(int sig)
     {
         sEnd = 1;
     }
+    /*
+     * parent waits for children and exit
+     * this cannot be done in parent function
+     * because there is blocking function getchar()
+     */
     else if (pid > 0)
-    { // parent waits for children and exit
-      // this cannot be done in parent function
-      // because there is blocking function getchar()
+    {
         int status = 0;
         kill(pid, SIGUSR1);
         waitpid(pid, &status, 0);
@@ -70,9 +73,14 @@ int parentProc(pid_t childPid, pid_t myPid, sigset_t* setusr)
         {
             outputChar += 1;
         }
-        kill(childPid, SIGUSR1); // child's turn
+        /*
+         * child's turn
+         */
+        kill(childPid, SIGUSR1);
 
-        // waint for children process
+        /*
+         * waint for children process
+         */
         while(!sigUsr1)
         {
             sigsuspend(&emptySet);
@@ -97,8 +105,11 @@ int childProc(pid_t parentPid, pid_t myPid, sigset_t* setusr)
     while(!sEnd)
     {
         sigprocmask(SIG_BLOCK, setusr, NULL);
+        /*
+         * wait on signal from parent
+         */
         while(!sigUsr1)
-        { // wait on signal from parent
+        {
             sigsuspend(&emptySet);
         }
 
@@ -115,7 +126,10 @@ int childProc(pid_t parentPid, pid_t myPid, sigset_t* setusr)
             outputChar += 1;
         }
         kill(parentPid, SIGUSR1);
-        sigUsr1 = 0; // wait for parent
+        /*
+         * wait for parent
+         */
+        sigUsr1 = 0;
         sigprocmask(SIG_UNBLOCK, setusr, NULL);
     }
     kill(parentPid, SIGUSR1);
@@ -138,10 +152,14 @@ int main(void)
     sigaddset(&setusr, SIGUSR1);
     sigaddset(&setusr, SIGUSR2);
 
-    // Init my own handlers
+    /*
+     * Init my own handlers
+     */
     sigprocmask(SIG_BLOCK, &setint, NULL);
 
-    // catch sigint signal
+    /*
+     * catch sigint signal
+     */
     sigact.sa_handler = handleInt;
     sigemptyset(&sigact.sa_mask);
     sigact.sa_flags = 0;
@@ -150,7 +168,9 @@ int main(void)
         return 1;
     }
 
-    // catch sigusr1 signal
+    /*
+     * catch sigusr1 signal
+     */
     sigusr1.sa_handler = handleUsr1;
     sigemptyset(&sigusr1.sa_mask);
     sigusr1.sa_flags = 0;
@@ -159,7 +179,9 @@ int main(void)
         return 1;
     }
 
-    // catch sigusr2 signal
+    /*
+     * catch sigusr2 signal
+     */
     sigusr2.sa_handler = handleUsr2;
     sigemptyset(&sigusr2.sa_mask);
     sigusr2.sa_flags = 0;
@@ -170,7 +192,9 @@ int main(void)
     
     sigprocmask(SIG_UNBLOCK, &setint, NULL);
 
-    // forking processes
+    /*
+     * forking processes
+     */
     pid = fork();
     if (pid > 0)
     {
