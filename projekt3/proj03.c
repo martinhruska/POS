@@ -49,9 +49,6 @@ struct command
  */
 void printPrompt()
 {
-    /*
-     * printf("\n");
-     */
     printf("~$ ");
     fflush(stdout);
 }
@@ -67,9 +64,6 @@ void handleChld(int sig)
             --jobs;
             printf("Done \t %d\n",pid);
         }
-        /*
-         * printf("Child: %d ends with %d \n", pid, res);
-         */
     }
 }
 
@@ -209,9 +203,6 @@ struct command *parseCommand(char *str, int size)
         while(isspace(str[start]))
             ++start;
         int pend = findWordEnd(str,start);
-        /*
-         * printf("param: %d %d\n",start, pend);
-         */
         char *temp = getWord(str+start, pend-start);
 
         if (!strcmp(temp,"&"))
@@ -262,9 +253,6 @@ struct command *parseCommand(char *str, int size)
         {
             resCmd->params[j] = temp;
         }
-        /*
-         * printf("added $%s$ %d %d\n", resCmd->params[j], start, pend);
-         */
         start = pend;
 
     }
@@ -355,7 +343,6 @@ void *readThreadFunction(void *params)
             printPrompt();
             continue;
         }
-        /* printf("Read: %s %d\n",newLine, strlen(newLine)); */
         readCmd = parseCommand(newLine, strlen(newLine));
         free(newLine);
         if (readCmd == NULL)
@@ -365,7 +352,6 @@ void *readThreadFunction(void *params)
         }
         /*
          * printCurrentCommad();
-         * printf("params: %d\n", readCmd->paramsNumber);
          */
 
         cmdLoaded = 1;
@@ -534,7 +520,6 @@ void *commandThreadFunction(void *params)
         pthread_mutex_unlock(&mutex);
        
         /*
-         * printf("Command thread is here\n");
          * printCurrentCommad();
          */
         if (!strcmp(readCmd->cmd, "exit"))
