@@ -27,8 +27,7 @@
 enum specialCmdOpts {NONE, BCG, IN, OUT};
 static struct command *readCmd = NULL;
 pid_t pid=1;
-pid_t awaited = 0;
-int childEnd = 0;
+static pid_t awaited = 0;
 
 /*
  * synchronization tools
@@ -69,8 +68,7 @@ void handleChld(int sig)
         pid_t pid = wait(&res);
         if (pid == awaited)
         {
-            awaited = 1;
-            childEnd = 1;
+            awaited = 0;
         }
         else if (pid != -1)
         {
@@ -445,20 +443,11 @@ void parentProc(pid_t child)
     if (readCmd->special != BCG)
     {
         sigset_t emptySet;
-        sigset_t setchld;
-        sigemptyset(&setchld);
-        sigaddset(&setchld, SIGCHLD);
-        sigprocmask(SIG_BLOCK, &setchld, NULL);
-        printf("START waintg %d\n", child);
-        awaited = child;
-        childEnd = 0;
-        while(awaited != child)
+        while(awaited)
         {
             sigsuspend(&emptySet);
         }
-        sigprocmask(SIG_UNBLOCK, &setchld, NULL);
         /*waitpid(child, &status, 0);*/
-        printf("END waintg\n");
     }
     else
     {
@@ -560,6 +549,10 @@ void executeCommand()
     pid = fork();
     if (pid > 0)
     {
+        if (readCmd->special != BCG)
+        {
+            awaited = pid;
+        }
         parentProc(pid); 
     } 
     else if (pid == 0)
@@ -570,7 +563,7 @@ void executeCommand()
     else if (pid < 0)
     {
         perror("Fork call was unsuccesfull\n");
-        exit(EXIT_FAILURE);
+        /*exit(EXIT_FAILURE);*/
     }
 }
 
