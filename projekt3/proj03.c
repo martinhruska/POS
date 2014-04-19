@@ -1,4 +1,9 @@
-#define _XOPEN_SOURCE
+#define _POSIX_C_SOURCE 199506L
+#define _XOPEN_SOURCE 500
+
+#ifndef _REENTRANT
+#define _REENTRANT
+
 
 /**
  * Project 3 @ POS Lecture
@@ -11,6 +16,7 @@
 #include <ctype.h>
 #include <string.h>
 
+#include <signal.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <wait.h>
@@ -21,6 +27,8 @@
 enum specialCmdOpts {NONE, BCG, IN, OUT};
 static struct command *readCmd = NULL;
 pid_t pid=1;
+pid_t awaited = 0;
+int childEnd = 0;
 
 /*
  * synchronization tools
@@ -59,7 +67,12 @@ void handleChld(int sig)
     {
         int res = 0;
         pid_t pid = wait(&res);
-        if (pid != -1)
+        if (pid == awaited)
+        {
+            awaited = 1;
+            childEnd = 1;
+        }
+        else if (pid != -1)
         {
             --jobs;
             printf("Done \t %d\n",pid);
@@ -156,7 +169,35 @@ int deleteCommand(struct command* cmd)
     return 0;
 }
 
-/*
+/**
+ * Remove quots marks from command
+ */
+int removeQuots(char *str)
+{
+    int num = 0;
+    while (*str != '\0')
+    {
+        if (*str == '\"')
+        { /* remove " */
+            char *temp = str;
+            ++num;
+            while (*temp != '\0')
+            {
+                *temp = *(temp+1);
+                ++temp;
+            }
+        }
+        else
+        {
+            ++str;
+        }
+    }
+
+    /* return 1 when num quots are even */
+    return (num%2 != 0);
+}
+
+/**
  * Parse command from input string
  */
 struct command *parseCommand(char *str, int size)
@@ -204,6 +245,14 @@ struct command *parseCommand(char *str, int size)
             ++start;
         int pend = findWordEnd(str,start);
         char *temp = getWord(str+start, pend-start);
+        if (removeQuots(temp))
+        {
+            fprintf(stderr, "Cannot parse command\n");
+            resCmd->params[j] = NULL;
+            free(temp);
+            deleteCommand(resCmd);
+            return NULL;
+        }
 
         if (!strcmp(temp,"&"))
         {
@@ -216,7 +265,9 @@ struct command *parseCommand(char *str, int size)
             /* end of params -> no input file */
             if (j+1 == i+1)
             {
+                fprintf(stderr, "Error: input not specified\n");
                 resCmd->params[j] = NULL;
+                free(temp);
                 deleteCommand(resCmd);
                 return NULL;
             }
@@ -229,7 +280,9 @@ struct command *parseCommand(char *str, int size)
             /* end of params -> no output file */
             if (j+1 == i+1)
             {
+                fprintf(stderr, "Error: output not specified\n");
                 resCmd->params[j] = NULL;
+                free(temp);
                 deleteCommand(resCmd);
                 return NULL;
             }
@@ -263,7 +316,7 @@ struct command *parseCommand(char *str, int size)
     return resCmd;
 }
 
-/*
+/**
  * Print current command
  */
 void printCurrentCommad()
@@ -284,7 +337,7 @@ void printCurrentCommad()
 int readLine(char *command, size_t max)
 {
     ssize_t readChars = read(STDIN_FILENO, command, max);
-    int res = 1;
+    int res = 0;
 
     if (readChars > 512)
     {
@@ -296,8 +349,7 @@ int readLine(char *command, size_t max)
     }
     else if (readChars == 0)
     {
-        fprintf(stderr,"EOF reached\n");
-        res = 0;
+        res = 1;
     }
     else if (readChars < 0)
     {
@@ -330,10 +382,13 @@ void *readThreadFunction(void *params)
          * getline(&newLine, &newLineSize, stdin);
          */
         int resRead = readLine(newLine, newLineSize);
-        if (resRead == 0)
+        if (resRead == 1)
         {
+            /* sends signal that party is over */
             free(newLine);
             deleteCommand(readCmd);
+            cmdLoaded = 1;
+            pthread_cond_signal(&condMonitor);
             break;
         }
         /* read failed or no command given */
@@ -386,10 +441,24 @@ void *readThreadFunction(void *params)
  */
 void parentProc(pid_t child)
 {
-    int status = 0;
+    /*int status = 0;*/
     if (readCmd->special != BCG)
     {
-        waitpid(child, &status, 0);
+        sigset_t emptySet;
+        sigset_t setchld;
+        sigemptyset(&setchld);
+        sigaddset(&setchld, SIGCHLD);
+        sigprocmask(SIG_BLOCK, &setchld, NULL);
+        printf("START waintg %d\n", child);
+        awaited = child;
+        childEnd = 0;
+        while(awaited != child)
+        {
+            sigsuspend(&emptySet);
+        }
+        sigprocmask(SIG_UNBLOCK, &setchld, NULL);
+        /*waitpid(child, &status, 0);*/
+        printf("END waintg\n");
     }
     else
     {
@@ -414,7 +483,8 @@ int prepareOut()
         return 0;
     }
 
-    int newOut = open(readCmd->output, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    int newOut = open(readCmd->output, O_CREAT | O_TRUNC | O_WRONLY,
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
     if (newOut == -1)
     {
         return -1;
@@ -518,6 +588,10 @@ void *commandThreadFunction(void *params)
             pthread_cond_wait(&condMonitor, &mutex);
         }
         pthread_mutex_unlock(&mutex);
+        if (readCmd == NULL)
+        { /* nothing to read, party is over */
+            break;
+        }
        
         /*
          * printCurrentCommad();
@@ -617,3 +691,5 @@ int main(void)
 
     return EXIT_SUCCESS;
 }
+
+#endif
