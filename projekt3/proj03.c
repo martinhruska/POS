@@ -29,6 +29,8 @@ static struct command *readCmd = NULL;
 pid_t pid=1;
 static pid_t awaited = 0;
 
+struct sigaction sigact;
+
 /*
  * synchronization tools
  */
@@ -532,6 +534,23 @@ int childProc()
         fprintf(stderr, "Unable to open input: %s\n", readCmd->input);
         return EXIT_FAILURE;
     }
+    if (readCmd-> special == BCG)
+    { /* we want not to serve interuption */
+        sigset_t setint;
+        sigemptyset(&setint);
+        sigaddset(&setint, SIGINT);
+
+        /* Ignore foreground interuption */
+        sigprocmask(SIG_BLOCK, &setint, NULL);
+
+        sigact.sa_handler = SIG_DFL;
+        if (sigaction(SIGCHLD, &sigact, NULL) == -1)
+        {
+            fprintf(stderr, "Unable to reset signal handler");
+            return EXIT_FAILURE;
+        }
+    }
+
     int ret = execvp (readCmd->cmd, readCmd->params);
     if (ret < 0) 
     {
@@ -605,7 +624,6 @@ void *commandThreadFunction(void *params)
 
 int main(void)
 {
-    struct sigaction sigact;
     struct sigaction sigchld;
     sigset_t setint;
     sigset_t setchld;
