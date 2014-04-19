@@ -197,6 +197,19 @@ int removeQuots(char *str)
     return (num%2 != 0);
 }
 
+char* shiftStringLeft(char *str)
+{
+    char *temp = str;
+
+    while (*temp != '\0')
+    {
+        *temp = *(temp+1);
+        ++temp;
+    }
+    
+    return str;
+}
+
 /**
  * Parse command from input string
  */
@@ -227,7 +240,7 @@ struct command *parseCommand(char *str, int size)
         ++i;
     }
 
-    /* plus one is name of command, plus one is terminating string */
+    /* add one for name of command, add one for terminating string */
     resCmd->params = malloc((2+i)*sizeof(char *));
     resCmd->input = NULL;
     resCmd->output = NULL;
@@ -260,10 +273,16 @@ struct command *parseCommand(char *str, int size)
             free(temp);
             ++specials;
         }
-        else if (!strcmp(temp,"<"))
+        else if (temp[0] == '<')
         {
+            if (strlen(temp) > 1)
+            {
+                ++specials;
+                resCmd->input = temp;
+                shiftStringLeft(temp);
+            }
             /* end of params -> no input file */
-            if (j+1 == i+1)
+            else if (j+1 == i+1)
             {
                 fprintf(stderr, "Error: input not specified\n");
                 resCmd->params[j] = NULL;
@@ -271,14 +290,23 @@ struct command *parseCommand(char *str, int size)
                 deleteCommand(resCmd);
                 return NULL;
             }
-            free(temp);
-            state = IN;
-            ++specials;
+            else
+            {             
+                free(temp);
+                state = IN;
+                ++specials;
+            }
         }
-        else if (!strcmp(temp,">"))
+        else if (temp[0] == '>')
         {
+            if (strlen(temp) > 1)
+            {
+                ++specials;
+                resCmd->output = temp;
+                shiftStringLeft(temp);
+            }
             /* end of params -> no output file */
-            if (j+1 == i+1)
+            else if (j+1 == i+1)
             {
                 fprintf(stderr, "Error: output not specified\n");
                 resCmd->params[j] = NULL;
@@ -286,9 +314,12 @@ struct command *parseCommand(char *str, int size)
                 deleteCommand(resCmd);
                 return NULL;
             }
-            free(temp);
-            state = OUT;
-            ++specials;
+            else
+            {
+                free(temp);
+                state = OUT;
+                ++specials;
+            }
         }
         else if (state == IN)
         {
