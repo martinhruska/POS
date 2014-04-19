@@ -480,7 +480,6 @@ void parentProc(pid_t child)
         {
             sigsuspend(&emptySet);
         }
-        /*waitpid(child, &status, 0);*/
     }
     else
     {
