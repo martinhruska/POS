@@ -170,33 +170,8 @@ int deleteCommand(struct command* cmd)
 }
 
 /**
- * Remove quots marks from command
+ * Shift a given string to left by one position
  */
-int removeQuots(char *str)
-{
-    int num = 0;
-    while (*str != '\0')
-    {
-        if (*str == '\"')
-        { /* remove " */
-            char *temp = str;
-            ++num;
-            while (*temp != '\0')
-            {
-                *temp = *(temp+1);
-                ++temp;
-            }
-        }
-        else
-        {
-            ++str;
-        }
-    }
-
-    /* return 1 when num quots are even */
-    return (num%2 != 0);
-}
-
 char* shiftStringLeft(char *str)
 {
     char *temp = str;
@@ -208,6 +183,31 @@ char* shiftStringLeft(char *str)
     }
     
     return str;
+}
+
+/**
+ * Remove quots marks from command
+ */
+int removeQuots(char *str)
+{
+    int num = 0;
+    while (*str != '\0')
+    {
+        if (*str == '\"')
+        { /* remove " */
+            char *temp = str;
+            ++num;
+
+            shiftStringLeft(temp);
+        }
+        else
+        {
+            ++str;
+        }
+    }
+
+    /* return 1 when num quots are even */
+    return (num%2 != 0);
 }
 
 /**
