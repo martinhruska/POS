@@ -165,7 +165,6 @@ int deleteCommand(struct command* cmd)
     }
 
     free(cmd);
-    cmd = NULL;
     return 0;
 }
 
@@ -264,6 +263,7 @@ struct command *parseCommand(char *str, int size)
             resCmd->params[j] = NULL;
             free(temp);
             deleteCommand(resCmd);
+            readCmd = NULL;
             return NULL;
         }
 
@@ -288,6 +288,7 @@ struct command *parseCommand(char *str, int size)
                 resCmd->params[j] = NULL;
                 free(temp);
                 deleteCommand(resCmd);
+                readCmd = NULL;
                 return NULL;
             }
             else
@@ -312,6 +313,7 @@ struct command *parseCommand(char *str, int size)
                 resCmd->params[j] = NULL;
                 free(temp);
                 deleteCommand(resCmd);
+                readCmd = NULL;
                 return NULL;
             }
             else
@@ -418,6 +420,7 @@ void *readThreadFunction(void *params)
             /* sends signal that party is over */
             free(newLine);
             deleteCommand(readCmd);
+            readCmd = NULL;
             cmdLoaded = 1;
             pthread_cond_signal(&condMonitor);
             break;
@@ -457,6 +460,7 @@ void *readThreadFunction(void *params)
         }
         pthread_mutex_unlock(&mutex);
         deleteCommand(readCmd);
+        readCmd = NULL;
 
         /* if there were no interuptions, print prompt */
         if (!inter)
@@ -641,6 +645,7 @@ void *commandThreadFunction(void *params)
         if (!strcmp(readCmd->cmd, "exit"))
         {
             deleteCommand(readCmd);
+            readCmd = NULL;
             break;
         }
         executeCommand();
