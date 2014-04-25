@@ -109,7 +109,24 @@ int findWordEnd(char *str, int start)
         ++i;
 
     while (str[i] != '\0' && !isspace(str[i]))
-        ++i;
+    {
+        if (str[i] == '\"')
+        {
+            ++i;
+            while(str[i] != '\0' && str[i] != '\"')
+            { /* skip over quots */
+                ++i;
+            }
+            if (str[i] == '\"')
+            {
+                ++i;
+            }
+        }
+        else
+        {
+            ++i;
+        }
+    }
     return i;
 }
 
