@@ -556,31 +556,29 @@ int prepareIn()
  */
 int childProc()
 {
-    /* we dont want be interrupted before calling command */
-    sigset_t setint;
-    sigemptyset(&setint);
-    sigaddset(&setint, SIGINT);
-    sigprocmask(SIG_BLOCK, &setint, NULL);
-
     if (readCmd == NULL)
     {
-        sigprocmask(SIG_UNBLOCK, &setint, NULL);
         return EXIT_SUCCESS;
     }
     if (prepareOut() < 0 )
     {
-        sigprocmask(SIG_UNBLOCK, &setint, NULL);
         fprintf(stderr, "Unable to open output: %s\n", readCmd->output);
         return EXIT_FAILURE;
     }
     if (prepareIn() < 0 )
     {
-        sigprocmask(SIG_UNBLOCK, &setint, NULL);
         fprintf(stderr, "Unable to open input: %s\n", readCmd->input);
         return EXIT_FAILURE;
     }
     if (readCmd-> special == BCG)
-    {
+    { /* we want not to serve interuption */
+        sigset_t setint;
+        sigemptyset(&setint);
+        sigaddset(&setint, SIGINT);
+
+        /* Ignore foreground interuption */
+        sigprocmask(SIG_BLOCK, &setint, NULL);
+
         sigact.sa_handler = SIG_DFL;
         if (sigaction(SIGCHLD, &sigact, NULL) == -1)
         {
@@ -589,11 +587,9 @@ int childProc()
         }
     }
 
-    sigprocmask(SIG_UNBLOCK, &setint, NULL);
     int ret = execvp (readCmd->cmd, readCmd->params);
     if (ret < 0) 
     {
-        sigprocmask(SIG_UNBLOCK, &setint, NULL);
         fprintf(stderr, "Unable to execute given command: %s\n", readCmd->cmd);
         return EXIT_FAILURE;
     }
