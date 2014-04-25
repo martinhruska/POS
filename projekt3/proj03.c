@@ -77,7 +77,6 @@ void handleChld(int sig)
         else if (pid != -1)
         {
             --jobs;
-            printf("Done \t %d\n",pid);
         }
     }
 }
@@ -495,13 +494,14 @@ void *readThreadFunction(void *params)
  */
 void parentProc(pid_t child)
 {
-    /*int status = 0;*/
     if (readCmd->special != BCG)
-    {
-        sigset_t emptySet;
+    { /* wait unit child ends */
+        sigset_t intSet;
+        sigemptyset(&intSet);
+        sigaddset(&intSet,SIGINT);
         while(awaited)
         {
-            sigsuspend(&emptySet);
+            sigsuspend(&intSet);
         }
     }
     else
@@ -573,6 +573,11 @@ int prepareIn()
  */
 int childProc()
 {
+    sigset_t emptySet;
+    sigemptyset(&emptySet);
+    sigset_t fullSet;
+    sigfillset(&fullSet);
+    sigprocmask(SIG_UNBLOCK, &fullSet, NULL);
     if (readCmd == NULL)
     {
         return EXIT_SUCCESS;
@@ -645,6 +650,11 @@ void executeCommand()
 void *commandThreadFunction(void *params)
 {
     UNUSED(params);
+    sigset_t fullSet;
+    sigset_t emptySet;
+    sigfillset(&fullSet);
+    sigemptyset(&emptySet);
+        
     while(1)
     {
         pthread_mutex_lock(&mutex);
@@ -667,7 +677,10 @@ void *commandThreadFunction(void *params)
             readCmd = NULL;
             break;
         }
+
+        pthread_sigmask(SIG_SETMASK, &fullSet, NULL);
         executeCommand();
+        pthread_sigmask(SIG_SETMASK, &emptySet, NULL);
         cmdLoaded = 0;
         pthread_cond_signal(&condMonitor);
         fflush(stdout);
