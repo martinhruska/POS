@@ -77,6 +77,7 @@ void handleChld(int sig)
         else if (pid != -1)
         {
             --jobs;
+            printf("Done \t %d\n",pid);
         }
     }
 }
@@ -496,12 +497,11 @@ void parentProc(pid_t child)
 {
     if (readCmd->special != BCG)
     { /* wait unit child ends */
-        sigset_t intSet;
-        sigemptyset(&intSet);
-        sigaddset(&intSet,SIGINT);
+        sigset_t emptySet;
+        sigemptyset(&emptySet);
         while(awaited)
         {
-            sigsuspend(&intSet);
+            sigsuspend(&emptySet);
         }
     }
     else
